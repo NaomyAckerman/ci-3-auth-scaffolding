@@ -1,0 +1,20 @@
+==============================================================================================================
+pada application/config/config.php
+ubah $config['base_url'] = ''; 
+ke berikut :
+
+$config['base_url'] = ((isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] == "on") ? "https" : "http");
+$config['base_url'] .= "://" . $_SERVER['HTTP_HOST'];
+$config['base_url'] .= str_replace(basename($_SERVER['SCRIPT_NAME']), "", $_SERVER['SCRIPT_NAME']);
+
+
+
+
+==============================================================================================================
+buat file ".htaccess" Pada root ci (tanpa tanda"")
+isikan ini :
+
+RewriteEngine On
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^(.*)$ index.php/$1 [L]

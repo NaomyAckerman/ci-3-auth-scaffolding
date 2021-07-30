@@ -5,18 +5,19 @@ class Auth
 	public function __construct()
 	{
 		$this->CI = &get_instance();
-		$this->CI->load->model('user');
 		$this->CI->config->load('auth');
+		$this->CI->load->model('user');
 	}
 
-	// Login Method
+	//* Login Method
 	public function attempt($credentials)
 	{
-		$email = $credentials['email'];
-		$password = $credentials['password'];
-		$user = $this->CI->user->find_where(['email' => $email])->row();
+		$default_login = $this->CI->config->item('default_login');
+		$user_credential = $credentials[$default_login];
+		$password_credential = $credentials['password'];
+		$user = $this->CI->user->find_where([$default_login => $user_credential])->row();
 		if ($user) {
-			if (password_verify($password, $user->password)) {
+			if (password_verify($password_credential, $user->password)) {
 				if ($user->status == 1) {
 					$this->CI->user->update([
 						'user_platform' => $this->CI->agent->platform(),
@@ -34,16 +35,16 @@ class Auth
 				return alert("Your password is wrong, please check your credentials", "error");
 			}
 		} else {
-			return alert("Your email is not registered, please sign-up", "error");
+			return alert("Your {$default_login} is not registered, please sign-up", "error");
 		}
 	}
 
-	// Register Method
+	//* Register Method
 	public function prepare($credentials)
 	{
 		if ($this->CI->config->item('user_active')) {
 			$token 	= substr(str_replace(['+', '/', '='], '', base64_encode(random_bytes(32))), 0, 32);
-			$url 	= base_url("login?token={$token}&email={$credentials['email']}");
+			$url 	= base_url("auth/verify?token={$token}&email={$credentials['email']}");
 			$html 	= "<p>Click this link to verify your account</p><br><a href='{$url}'>Activated now</a>";
 			$send 	= $this->_send_email($credentials['email'], 'User Activation', $html);
 			if (!$send) {
@@ -71,7 +72,30 @@ class Auth
 		return alert('failed to register user data', 'error');
 	}
 
-	// Temp send email
+	//* Forgot Method
+	public function sendResetLink($credentials)
+	{
+		$email = $credentials['email'];
+		$user = $this->CI->user->find_where(['email' => $email])->row();
+		if ($user) {
+			$token 	= substr(str_replace(['+', '/', '='], '', base64_encode(random_bytes(32))), 0, 32);
+			$url 	= base_url("auth/reset?token={$token}&email={$email}");
+			$html 	= "<p>Click this link to reset your old password </p><br><a href='{$url}'>Reset now</a>";
+			$send 	= $this->_send_email($credentials['email'], 'Forgot Password', $html);
+			$credentials['reset_token'] = $token;
+			if (!$send) {
+				alert('Failed to forget password, there is a problem with the server', 'warning');
+				return false;
+			}
+			$this->CI->user->update($credentials, $user->id);
+			alert('Successfully forgot password, please check your email to reset password', 'success');
+			return true;
+		}
+		alert('Your email is not registered, please sign-up', 'error');
+		return false;
+	}
+
+	//* Temp send email
 	private function _send_email($user_email, $subject, $message)
 	{
 		$config = [
@@ -97,34 +121,48 @@ class Auth
 		}
 		return false;
 	}
-
-	public function verify($email, $token)
+	//* Email verify
+	public function emailVerify($email, $token, $reset = false)
 	{
+		$data = [];
+		$title = $reset ? 'reset' : 'activation';
 		$user = $this->CI->user->find_where(['email' => $email])->row();
 		if ($user) {
-			if ($user->email_verified_token == $token) {
-				$start_date 	= new DateTime($user->created_at);
+			$date = $reset ? $user->updated_at : $user->created_at;
+			$dbtoken = $reset ? $user->reset_token : $user->email_verified_token;
+			if ($dbtoken == $token) {
+				$start_date 	= new DateTime($date);
 				$since_start 	= $start_date->diff(new DateTime(date('Y-m-d h:i:s', now())));
+				// cek valid date
 				if ($since_start->d < 1) {
-					$this->CI->user->update([
-						'status' => 1,
-						'email_verified_token' => null,
-						'email_verified_at' => mdate('%Y-%m-%d %H:%i:%s', now())
-					], $user->id);
-					return alert('account activated successfully', 'success');
+					if ($reset) {
+						$this->CI->session->set_flashdata('user_id', $user->id);
+					} else {
+						$data['status'] 				= 1;
+						$data['email_verified_token']	= null;
+						$data['email_verified_at']		= mdate('%Y-%m-%d %H:%i:%s', now());
+						alert("Account {$title} successfully", 'success');
+						$this->CI->user->update($data, $user->id);
+					}
+					return true;
 				} else {
-					$this->CI->user->delete(['id' => $user->id]);
-					return alert('activation token has expired', 'error');
+					$reset ?
+						$this->CI->user->update(['reset_token' => null], $user->id) :
+						$this->CI->user->delete(['id' => $user->id]);
+					alert(ucfirst("{$title} token has expired"), 'error');
+					return false;
 				}
 			} else {
-				return alert('Invalid activation token', 'error');
+				alert("Invalid {$title} token", 'error');
+				return false;
 			}
 		} else {
-			return alert('Invalid activation email', 'error');
+			alert("Invalid {$title} email", 'error');
+			return false;
 		}
 	}
 
-	// Logout Method
+	// *Logout Method
 	public function destroy()
 	{
 		$this->CI->user->update([

@@ -12,11 +12,6 @@ class Login extends CI_Controller
 	public function index()
 	{
 		if (!$this->form_validation->run('login')) {
-			$token = $this->input->get('token');
-			$email = $this->input->get('email');
-			if ($token && $email) {
-				$this->auth->verify($email, $token);
-			}
 			$this->temp->set('title', 'Login');
 			$this->temp->load('template/auth', 'auth/v_login');
 		} else {

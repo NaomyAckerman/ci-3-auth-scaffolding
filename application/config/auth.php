@@ -36,6 +36,6 @@ $config['default_role'] = 'user';
 */
 // ------------------------------------------------------------------------
 $config['user_active']    = true;
-$config['email']         = 'ackermannaomy@gmail.com';
-$config['email_pass']     = 'Kode200216';
+$config['email']         = 'tester@gmail.com';
+$config['email_pass']     = 'rahasia';
 // ------------------------------------------------------------------------
